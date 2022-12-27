@@ -17,6 +17,7 @@
 #define PROJECT_2_15_441_INC_CMU_PACKET_H_
 
 #include <stdint.h>
+#include <time.h>
 
 typedef struct {
   uint32_t identifier;         // Identifier for the CMU-TCP protocol.
@@ -32,6 +33,20 @@ typedef struct {
   uint8_t extension_data[];    // Extension data.
 } __attribute__((__packed__)) cmu_tcp_header_t;
 
+/* 
+* options in header, 12byte in total
+*/
+typedef struct{
+  uint8_t kind;
+  uint8_t length;
+
+  time_t time;
+  uint16_t millitime;
+
+}timestamp_option_t;
+
+#define TIMESTAMP_OPTION_SIZE (sizeof(timestamp_option_t))
+
 #define SYN_FLAG_MASK 0x8
 #define ACK_FLAG_MASK 0x4
 #define FIN_FLAG_MASK 0x2
@@ -39,7 +54,7 @@ typedef struct {
 
 // Maximum Segment Size. Make sure to update this if your CCA requires extension
 // data for all packets, as this reduces the payload and thus the MSS.
-#define MSS (MAX_LEN - sizeof(cmu_tcp_header_t))
+#define MSS (MAX_LEN - sizeof(cmu_tcp_header_t) - TIMESTAMP_OPTION_SIZE)
 
 /* Helper functions to get/set fields in the header */
 

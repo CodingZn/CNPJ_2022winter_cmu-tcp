@@ -41,6 +41,15 @@ typedef enum {
   TCP_LISTENER = 1,
 } cmu_socket_type_t;
 
+// for rtt estimation
+typedef struct{
+  uint16_t srtt;
+  uint16_t devrtt;
+  uint16_t rto;
+// to be initialized by socket()
+}rtt_t;
+
+
 /**
  * This structure holds the state of a socket. You may modify this structure as
  * you see fit to include any additional state you need for your implementation.
@@ -61,6 +70,17 @@ typedef struct {
   int dying;
   pthread_mutex_t death_lock;
   window_t window;
+  // add state
+  pthread_mutex_t timeout_lock;
+  uint8_t last_check_timeout; // 1 for had timeout
+  pthread_mutex_t rtt_lock;
+  rtt_t rtt;
+  pthread_mutex_t state_lock;
+  /*
+  * for client, 0 for listen, 1 for synsent, 2 for established
+  * for server, 0 for listen, 1 for synrcvd, 2 for established
+  */
+  uint8_t state;
 } cmu_socket_t;
 
 /*
