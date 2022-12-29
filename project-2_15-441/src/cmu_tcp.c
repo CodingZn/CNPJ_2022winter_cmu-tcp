@@ -59,7 +59,7 @@ int cmu_socket(cmu_socket_t *sock, const cmu_socket_type_t socket_type,
   seq_init = rand();
   seq_init <<= 15;
   seq_init += rand();
-  sock->window.last_ack_received = seq_init;
+  sock->window.last_ack_received = seq_init & 0x3fffffff;
   sock->window.next_seq_expected = 0;
 
   // init added locks
