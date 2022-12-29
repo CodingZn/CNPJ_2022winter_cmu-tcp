@@ -33,7 +33,7 @@ typedef struct {
   uint32_t next_seq_expected;
   uint32_t last_ack_received;
   pthread_mutex_t ack_lock;
-  timestamp_option_t pkt_sent_times[TIMESTAMPS_N];
+  timespec pkt_sent_times[TIMESTAMPS_N];
   uint16_t pkt_n;
 } window_t;
 
@@ -52,16 +52,6 @@ typedef struct{
   uint16_t rto;
 // to be initialized by socket()
 }rtt_t;
-
-
-typedef struct{
-
-  time_t time;
-  uint16_t millitime;
-
-}timestamp_option_t;
-
-
 
 /**
  * This structure holds the state of a socket. You may modify this structure as
