@@ -54,7 +54,7 @@ typedef struct{
 
 // Maximum Segment Size. Make sure to update this if your CCA requires extension
 // data for all packets, as this reduces the payload and thus the MSS.
-#define MSS (MAX_LEN - sizeof(cmu_tcp_header_t) - TIMESTAMP_OPTION_SIZE)
+#define MSS (MAX_LEN - sizeof(cmu_tcp_header_t))
 
 /* Helper functions to get/set fields in the header */
 
