@@ -421,7 +421,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
         uint8_t *ext_data = NULL;
         msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                             ext_len, ext_data, payload, payload_len);
-printf("send: plen=%d, content=%s\n", plen, payload);
+
         //add timestamp
         struct timespec send_time;
         clock_gettime(CLOCK_REALTIME, &send_time);
