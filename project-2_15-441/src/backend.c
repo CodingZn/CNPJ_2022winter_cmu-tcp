@@ -284,7 +284,7 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
  * @param data The data to be sent.
  * @param buf_len The length of the data being sent.
  */
-/**/
+/*
 void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
   uint8_t *msg;
   uint8_t *data_offset = data;
@@ -324,7 +324,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
       data_offset += payload_len;
     }
   }
-}
+}*/
 
 
 /**
@@ -338,7 +338,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
  * @param data The data to be sent.
  * @param buf_len The length of the data being sent.
  */ 
-/* void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single send: buflen = %d\n", buf_len);
+void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single send: buflen = %d\n", buf_len);
   uint8_t *msg;
   // dataoffset 指向第一个没确认的offset
   // 只有发送完window中的pkt，并且收到所有pkt（或者超时），进入下一次循环前，才会更新
@@ -422,7 +422,7 @@ printf("send all in a window. now check...\n");
       buf_len -= len_have_rcvd;
     }
   }
-} */
+} /* */
 
 void *begin_backend(void *in) {
   cmu_socket_t *sock = (cmu_socket_t *)in;
