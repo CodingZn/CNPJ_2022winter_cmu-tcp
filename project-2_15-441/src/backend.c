@@ -47,6 +47,23 @@ int has_been_acked(cmu_socket_t *sock, uint32_t seq) {
   return result;
 }
 
+short get_pkt_index(cmu_socket_t *sock, uint8_t *pkt){
+  cmu_tcp_header_t *hdr = (cmu_tcp_header_t *)pkt;
+  uint32_t ack = get_ack(hdr);
+  short i;
+  for(i=0; i<sock->window.pkt_n; i++){
+    if(sock->window.pkt_expect_ack[i] == ack)
+      break;
+  }
+  if (i == sock->window.pkt_n){
+    printf("get_pkt_index error: no such pkt!\n");
+    return -1;
+  }
+  else{
+    return i;
+  }
+}
+
 /**
  * Updates the socket information to represent the newly received packet.
  *
@@ -67,20 +84,31 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
         sock->window.last_ack_received = ack;
       }
 
-      if (sock->state == 2){ // to update rtt
+      //get timestamp
+      struct timespec ts_now; 
+      clock_gettime(CLOCK_REALTIME, &ts_now);
 
+      if (sock->state == 2){ 
+        short index = get_pkt_index(sock, pkt);
+        if (index >= 0){
+          struct timespec ts_sent = sock->window.pkt_sent_times[index];
+          uint16_t rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
+          //update rtt
+          rtt_t newrtt = sock->rtt;
+          newrtt.srtt = sock->rtt.srtt + 0.125* (rtt - sock->rtt.srtt);
+          newrtt.devrtt = 0.75 * sock->rtt.devrtt + 0.25 * (abs(rtt - sock->rtt.srtt));
+          newrtt.rto = newrtt.srtt + 4 * newrtt.devrtt;
+          sock->rtt = newrtt;   printf("check new rtt: srtt=%d, drtt=%d, rto=%d\n", sock->rtt.srtt, sock->rtt.devrtt, sock->rtt.rto);
+
+        }
       }
-      else{// to init rtt
-
-        //get timestamp
+      else{
         struct timespec ts_sent = sock->window.pkt_sent_times[0];
-        struct timespec ts_now; 
-        clock_gettime(CLOCK_REALTIME, &ts_now);
+        uint16_t rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
         //init rtt(ms)
-        uint16_t new_rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
-        sock->rtt.srtt = new_rtt;
+        sock->rtt.srtt = rtt;
         sock->rtt.devrtt = 0;
-        sock->rtt.rto = new_rtt;
+        sock->rtt.rto = rtt;
 
       }
 
@@ -165,11 +193,11 @@ printf("send synack\n");
           create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                         ext_len, ext_data, payload, payload_len);
 
-      //add timestamp
-      struct timespec ts;
-      clock_gettime(CLOCK_REALTIME, &ts);
-      sock->window.pkt_n = 1;
-      sock->window.pkt_sent_times[0] = ts;
+      // //add timestamp
+      // struct timespec ts;
+      // clock_gettime(CLOCK_REALTIME, &ts);
+      // sock->window.pkt_n = 1;
+      // sock->window.pkt_sent_times[0] = ts;
 
       sendto(sock->socket, response_packet, plen, 0,
              (struct sockaddr *)&(sock->conn), conn_len);
@@ -362,6 +390,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
       uint32_t base = sock->window.last_ack_received;
       uint32_t len_have_sent = 0;
       uint32_t len_have_rcvd = 0;
+      sock->window.pkt_n = 0;
 
       // 发送循环
       // 对于本窗口，将所有的pkt都发出去
@@ -393,6 +422,14 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
         msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                             ext_len, ext_data, payload, payload_len);
 printf("send: plen=%d, content=%s\n", plen, payload);
+        //add timestamp
+        struct timespec send_time;
+        clock_gettime(CLOCK_REALTIME, &send_time);
+        sock->window.pkt_n = 1;
+        sock->window.pkt_sent_times[sock->window.pkt_n] = send_time;
+        sock->window.pkt_expect_ack[sock->window.pkt_n] = seq + payload_len;
+        sock->window.pkt_n++;
+
         sendto(sockfd, msg, plen, 0, (struct sockaddr *)&(sock->conn),
                conn_len);
 

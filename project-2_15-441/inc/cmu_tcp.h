@@ -34,6 +34,7 @@ typedef struct {
   uint32_t last_ack_received;
   pthread_mutex_t ack_lock;
   struct timespec pkt_sent_times[TIMESTAMPS_N];
+  uint32_t pkt_expect_ack[TIMESTAMPS_N];
   uint16_t pkt_n;
 } window_t;
 
