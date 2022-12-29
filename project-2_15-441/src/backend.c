@@ -61,7 +61,7 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
   uint8_t flags = get_flags(hdr);
 
   switch (flags) {
-    case ACK_FLAG_MASK: {printf("ack\n");
+    case ACK_FLAG_MASK: {printf("rcv ack: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));  
       uint32_t ack = get_ack(hdr);
       if (after(ack, sock->window.last_ack_received)) {
         sock->window.last_ack_received = ack;
@@ -73,7 +73,7 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
       break;
     }
     case SYN_FLAG_MASK:{// listener
-      sock->window.next_seq_expected = get_seq(hdr) + 1;    printf("rcv syn\n");  
+      sock->window.next_seq_expected = get_seq(hdr) + 1;    printf("rcv syn: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));  
    
       socklen_t conn_len = sizeof(sock->conn);
       uint32_t seq = sock->window.last_ack_received + 1;
@@ -120,7 +120,7 @@ printf("send synack\n");
       break;
     }
     case SYN_FLAG_MASK | ACK_FLAG_MASK:{// initiator   
-      while(pthread_mutex_lock(&sock->state_lock) != 0){}   printf("rcv synack\n");  
+      while(pthread_mutex_lock(&sock->state_lock) != 0){}   printf("rcv synack: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));   
       sock->state = 2;
       pthread_mutex_unlock(&sock->state_lock);
       
@@ -170,7 +170,7 @@ printf("send synack\n");
 printf("send ack\n");    
       break;
     }
-    default: {printf("default\n");
+    default: {printf("rcv default: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));  
       socklen_t conn_len = sizeof(sock->conn);
       uint32_t seq = sock->window.last_ack_received;
 
