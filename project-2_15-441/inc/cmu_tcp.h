@@ -50,6 +50,16 @@ typedef struct{
 }rtt_t;
 
 
+typedef struct{
+
+  time_t time;
+  uint16_t millitime;
+
+}timestamp_option_t;
+
+#define TIMESTAMP_OPTION_SIZE (sizeof(timestamp_option_t))
+
+
 /**
  * This structure holds the state of a socket. You may modify this structure as
  * you see fit to include any additional state you need for your implementation.
