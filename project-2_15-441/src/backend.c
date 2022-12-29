@@ -272,15 +272,6 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
     handle_message(sock, pkt);
     free(pkt);
   }
-  else if(len < 0){
-    if (sock->type == TCP_LISTENER){
-      printf("client exit");
-      while(pthread_mutex_lock(&sock->death_lock)){}
-
-      sock->dying = 1;
-      pthread_mutex_unlock(&sock->death_lock);
-    }
-  }
   pthread_mutex_unlock(&(sock->recv_lock));
 }
 
@@ -293,7 +284,7 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
  * @param data The data to be sent.
  * @param buf_len The length of the data being sent.
  */
-/*
+/**/
 void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
   uint8_t *msg;
   uint8_t *data_offset = data;
@@ -333,7 +324,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
       data_offset += payload_len;
     }
   }
-}*/
+}
 
 
 /**
@@ -347,7 +338,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
  * @param data The data to be sent.
  * @param buf_len The length of the data being sent.
  */ 
-void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single send: buflen = %d\n", buf_len);
+/* void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single send: buflen = %d\n", buf_len);
   uint8_t *msg;
   // dataoffset 指向第一个没确认的offset
   // 只有发送完window中的pkt，并且收到所有pkt（或者超时），进入下一次循环前，才会更新
@@ -386,16 +377,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
         uint16_t plen = hlen + payload_len;
         uint8_t flags = 0;
         uint16_t adv_window = 1; // unchanged
-        /*
-        //add timestamp
-        uint16_t ext_len = TIMESTAMP_OPTION_SIZE;
-        timestamp_option_t send_time;
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        send_time.time = ts.tv_sec;
-        send_time.millitime = (uint16_t) (ts.tv_nsec / 1000000);
-        
-        uint8_t *ext_data =(uint8_t *) &send_time;*/
+       
         uint8_t *payload = data_offset + len_have_sent;
 
         uint16_t ext_len = 0;
@@ -440,7 +422,7 @@ printf("send all in a window. now check...\n");
       buf_len -= len_have_rcvd;
     }
   }
-}
+} */
 
 void *begin_backend(void *in) {
   cmu_socket_t *sock = (cmu_socket_t *)in;
