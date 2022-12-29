@@ -33,7 +33,7 @@ typedef struct {
   uint32_t next_seq_expected;
   uint32_t last_ack_received;
   pthread_mutex_t ack_lock;
-  timespec pkt_sent_times[TIMESTAMPS_N];
+  struct timespec pkt_sent_times[TIMESTAMPS_N];
   uint16_t pkt_n;
 } window_t;
 

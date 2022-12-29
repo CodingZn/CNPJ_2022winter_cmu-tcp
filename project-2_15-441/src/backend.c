@@ -67,6 +67,23 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
         sock->window.last_ack_received = ack;
       }
 
+      if (sock->state == 2){ // to update rtt
+
+      }
+      else{// to init rtt
+
+        //get timestamp
+        struct timespec ts_sent = sock->window.pkt_sent_times[0];
+        struct timespec ts_now; 
+        clock_gettime(CLOCK_REALTIME, &ts_now);
+        //init rtt(ms)
+        uint16_t new_rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
+        sock->rtt.srtt = new_rtt;
+        sock->rtt.devrtt = 0;
+        sock->rtt.rto = new_rtt;
+
+      }
+
       while(pthread_mutex_lock(&sock->state_lock) != 0);
       sock->state = 2;
       pthread_mutex_unlock(&sock->state_lock);
@@ -77,23 +94,7 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
    
       socklen_t conn_len = sizeof(sock->conn);
       uint32_t seq = sock->window.last_ack_received + 1;
-/*
-      //add timestamp in payload
-      timestamp_option_t send_time;
-      struct timespec ts;
-      clock_gettime(CLOCK_REALTIME, &ts);
-      send_time.time = ts.tv_sec;
-      send_time.millitime = (uint16_t) (ts.tv_nsec / 1000000);
-      
-      uint8_t *payload = &send_time;
-      uint16_t payload_len = sizeof(timestamp_option_t);
 
-
-      // 将数据包中的timestamp复制回复过去
-      timestamp_option_t* tm = (timestamp_option_t*)(pkt + sizeof(cmu_tcp_header_t));
-      uint16_t ext_len = TIMESTAMP_OPTION_SIZE;
-      uint8_t *ext_data = (uint8_t *)tm;
-*/
       uint8_t *payload = NULL;
       uint16_t payload_len = 0;
       uint16_t ext_len = 0;
@@ -110,6 +111,12 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
           create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                         ext_len, ext_data, payload, payload_len);
 
+      //add timestamp in payload
+      struct timespec ts;
+      clock_gettime(CLOCK_REALTIME, &ts);
+      sock->window.pkt_n = 1;
+      sock->window.pkt_sent_times[0] = ts;
+
       sendto(sock->socket, response_packet, plen, 0,
              (struct sockaddr *)&(sock->conn), conn_len);
       free(response_packet);
@@ -119,6 +126,7 @@ printf("send synack\n");
       pthread_mutex_unlock(&sock->state_lock);
       break;
     }
+
     case SYN_FLAG_MASK | ACK_FLAG_MASK:{// initiator   
       while(pthread_mutex_lock(&sock->state_lock) != 0){}   printf("rcv synack: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));   
       sock->state = 2;
@@ -132,24 +140,17 @@ printf("send synack\n");
       // No payload.
       uint8_t *payload = NULL;
       uint16_t payload_len = 0;
-/*
-      // 将payload中的timestamp复制到header回复过去
-      timestamp_option_t* tm = (timestamp_option_t*)(get_payload(pkt));
-      uint16_t ext_len = TIMESTAMP_OPTION_SIZE;
-      uint8_t *ext_data = (uint8_t *)tm;
 
-      // set rtt
-      timestamp_option_t* tm_sent = (timestamp_option_t*)(pkt + sizeof(cmu_tcp_header_t));
-      struct timespec ts;
-      clock_gettime(CLOCK_REALTIME, &ts);
-      uint32_t rtt; // in ms
-      rtt = (ts.tv_sec - tm_sent->time) * 1000 + (ts.tv_nsec/1000000 - tm_sent->millitime);
-      while (pthread_mutex_lock(&sock->rtt_lock)!= 0);
-      sock->rtt.srtt = rtt;
+      //get timestamp
+      struct timespec ts_sent = sock->window.pkt_sent_times[0];
+      struct timespec ts_now; 
+      clock_gettime(CLOCK_REALTIME, &ts_now);
+      //init rtt(ms)
+      uint16_t new_rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
+      sock->rtt.srtt = new_rtt;
       sock->rtt.devrtt = 0;
-      sock->rtt.rto = rtt;
-      pthread_mutex_unlock(&sock->rtt_lock);
-*/
+      sock->rtt.rto = new_rtt;
+
 
       uint16_t ext_len = 0;
       uint8_t *ext_data = NULL;
@@ -163,6 +164,12 @@ printf("send synack\n");
       uint8_t *response_packet =
           create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                         ext_len, ext_data, payload, payload_len);
+
+      //add timestamp
+      struct timespec ts;
+      clock_gettime(CLOCK_REALTIME, &ts);
+      sock->window.pkt_n = 1;
+      sock->window.pkt_sent_times[0] = ts;
 
       sendto(sock->socket, response_packet, plen, 0,
              (struct sockaddr *)&(sock->conn), conn_len);
@@ -243,8 +250,9 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
       struct pollfd ack_fd;
       ack_fd.fd = sock->socket;
       ack_fd.events = POLLIN;
-      // Timeout after 3 seconds.
-      if (poll(&ack_fd, 1, 3000) <= 0) {
+      printf("check rtt: srtt=%d, drtt=%d, rto=%d\n", sock->rtt.srtt, sock->rtt.devrtt, sock->rtt.rto);
+      // Timeout after rto.
+      if (poll(&ack_fd, 1, sock->rtt.rto) <= 0) {
         while(pthread_mutex_lock(&(sock->timeout_lock)) != 0){
         }
         sock->last_check_timeout = 1;
@@ -444,21 +452,18 @@ void *begin_backend(void *in) {
       uint16_t plen = hlen + payload_len;
       uint8_t flags = SYN_FLAG_MASK;
       uint16_t adv_window = 1; // unchanged
-      /*
-      //add timestamp
-      uint16_t ext_len = TIMESTAMP_OPTION_SIZE;
-      timestamp_option_t send_time;
-      struct timespec ts;
-      clock_gettime(CLOCK_REALTIME, &ts);
-      send_time.time = ts.tv_sec;
-      send_time.millitime = (uint16_t) (ts.tv_nsec / 1000000);
       
-      uint8_t *ext_data =(uint8_t *) &send_time;
-*/
       uint16_t ext_len = 0;
       uint8_t* ext_data = NULL;
       uint8_t *msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                           ext_len, ext_data, payload, payload_len);
+
+      //add timestamp
+      struct timespec send_time;
+      clock_gettime(CLOCK_REALTIME, &send_time);
+      
+      sock->window.pkt_n = 1;
+      sock->window.pkt_sent_times[0] = send_time;
 
       sendto(sock->socket, msg, plen, 0, (struct sockaddr *)&(sock->conn),
               conn_len);
