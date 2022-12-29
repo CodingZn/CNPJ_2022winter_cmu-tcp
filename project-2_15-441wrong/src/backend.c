@@ -67,7 +67,7 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message\n"
       sock->window.next_seq_expected = get_seq(hdr) + 1;    printf("rcv syn\n");  
    
       socklen_t conn_len = sizeof(sock->conn);
-      uint32_t seq = sock->window.last_ack_received;
+      uint32_t seq = sock->window.last_ack_received + 1;
 
       //add timestamp in payload
       timestamp_option_t send_time;
@@ -114,7 +114,7 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message\n"
       sock->window.next_seq_expected = get_seq(hdr) + 1;      
    
       socklen_t conn_len = sizeof(sock->conn);
-      uint32_t seq = sock->window.last_ack_received;
+      uint32_t seq = sock->window.last_ack_received++;
 
       // No payload.
       uint8_t *payload = NULL;
@@ -256,7 +256,7 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message\n"
  * @param flags Flags that determine how the socket should wait for data. Check
  *             `cmu_read_mode_t` for more information.
  */
-void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {printf("check for data\n");
+void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
   cmu_tcp_header_t hdr;
   uint8_t *pkt;
   socklen_t conn_len = sizeof(sock->conn);
@@ -292,7 +292,7 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {printf("check fo
       break;
     default:
       perror("ERROR unknown flag");
-  }printf("recv? len=%d\n", len);
+  }
   if (len >= (ssize_t)sizeof(cmu_tcp_header_t)) {
     plen = get_plen(&hdr);printf("plen=%u\n", plen);
     pkt = malloc(plen);printf("have malloced\n");
@@ -473,63 +473,6 @@ void *begin_backend(void *in) {
   int death, buf_len, send_signal;
   uint8_t *data;
 
-  // handshake
-  if (sock->type == TCP_INITIATOR){// client
-    while(1){
-      size_t conn_len = sizeof(sock->conn);
-      // No payload.
-      uint8_t *payload = NULL;
-      uint16_t payload_len = 0;
-      uint16_t src = sock->my_port;
-      uint16_t dst = ntohs(sock->conn.sin_port);
-      uint32_t seq = sock->window.last_ack_received;
-      uint32_t ack = sock->window.next_seq_expected; // ???symmetic
-      uint16_t hlen = sizeof(cmu_tcp_header_t) + TIMESTAMP_OPTION_SIZE; // add timestamp
-      uint16_t plen = hlen + payload_len;
-      uint8_t flags = SYN_FLAG_MASK;
-      uint16_t adv_window = 1; // unchanged
-      
-      //add timestamp
-      uint16_t ext_len = TIMESTAMP_OPTION_SIZE;
-      timestamp_option_t send_time;
-      struct timespec ts;
-      clock_gettime(CLOCK_REALTIME, &ts);
-      send_time.time = ts.tv_sec;
-      send_time.millitime = (uint16_t) (ts.tv_nsec / 1000000);
-      
-      uint8_t *ext_data =(uint8_t *) &send_time;
-
-      uint8_t *msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
-                          ext_len, ext_data, payload, payload_len);
-
-      sendto(sock->socket, msg, plen, 0, (struct sockaddr *)&(sock->conn),
-              conn_len);
-      free(msg);
-
-      while(pthread_mutex_lock(&sock->state_lock) != 0);
-      sock->state = 1;
-      pthread_mutex_unlock(&sock->state_lock);
-
-
-      // check
-      check_for_data(sock, TIMEOUT);
-      if (sock->state == 2)
-        break;
-
-    }
-
-  }else{ // server/listener
-    while(1){      
-      while(pthread_mutex_lock(&sock->state_lock) != 0);
-      if(sock->state == 2)
-        break;
-      pthread_mutex_unlock(&sock->state_lock);
-      check_for_data(sock, NO_FLAG);
-    }
-    pthread_mutex_unlock(&sock->state_lock);
-
-  }
-printf("finish handshake\n");
   while (1) {
     while (pthread_mutex_lock(&(sock->death_lock)) != 0) {
     }

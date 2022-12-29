@@ -51,15 +51,15 @@ int cmu_socket(cmu_socket_t *sock, const cmu_socket_type_t socket_type,
   // FIXME: Sequence numbers should be randomly initialized. The next expected
   // sequence number should be initialized according to the SYN packet from the
   // other side of the connection.
-
+/*
   // 产生低30位随机的seqinit
   uint32_t seq_init = 0;
   srand(time(NULL));
   seq_init = rand();
   seq_init <<= 15;
   seq_init += rand();
-  sock->window.last_ack_received = seq_init;
-  sock->window.next_seq_expected = 0;
+  sock->window.last_ack_received = seq_init;*/
+  sock->window.next_seq_expected = 0;sock->window.last_ack_received = 0;
 
   // init added locks
 
@@ -127,6 +127,64 @@ int cmu_socket(cmu_socket_t *sock, const cmu_socket_type_t socket_type,
   }
   getsockname(sockfd, (struct sockaddr *)&my_addr, &len);
   sock->my_port = ntohs(my_addr.sin_port);
+/*
+  // handshake
+  if (sock->type == TCP_INITIATOR){// client
+    while(1){
+      size_t conn_len = sizeof(sock->conn);
+      // No payload.
+      uint8_t *payload = NULL;
+      uint16_t payload_len = 0;
+      uint16_t src = sock->my_port;
+      uint16_t dst = ntohs(sock->conn.sin_port);
+      uint32_t seq = sock->window.last_ack_received++;
+      uint32_t ack = sock->window.next_seq_expected; // wait for init
+      uint16_t hlen = sizeof(cmu_tcp_header_t) + TIMESTAMP_OPTION_SIZE; // add timestamp
+      uint16_t plen = hlen + payload_len;
+      uint8_t flags = SYN_FLAG_MASK;
+      uint16_t adv_window = 1; // unchanged
+      
+      //add timestamp
+      uint16_t ext_len = TIMESTAMP_OPTION_SIZE;
+      timestamp_option_t send_time;
+      struct timespec ts;
+      clock_gettime(CLOCK_REALTIME, &ts);
+      send_time.time = ts.tv_sec;
+      send_time.millitime = (uint16_t) (ts.tv_nsec / 1000000);
+      
+      uint8_t *ext_data =(uint8_t *) &send_time;
+
+      uint8_t *msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
+                          ext_len, ext_data, payload, payload_len);
+
+      sendto(sock->socket, msg, plen, 0, (struct sockaddr *)&(sock->conn),
+              conn_len);
+      free(msg);
+
+      while(pthread_mutex_lock(&sock->state_lock) != 0);
+      sock->state = 1;
+      pthread_mutex_unlock(&sock->state_lock);
+
+
+      // check
+      check_for_data(sock, TIMEOUT);
+      if (sock->state == 2)
+        break;
+
+    }
+
+  }else{ // server/listener
+    while(1){      
+      while(pthread_mutex_lock(&sock->state_lock) != 0);
+      if(sock->state == 2)
+        break;
+      pthread_mutex_unlock(&sock->state_lock);
+      check_for_data(sock, NO_FLAG);
+    }
+    pthread_mutex_unlock(&sock->state_lock);
+
+  }
+printf("finish handshake\n");*/
 
   pthread_create(&(sock->thread_id), NULL, begin_backend, (void *)sock);
   return EXIT_SUCCESS;
