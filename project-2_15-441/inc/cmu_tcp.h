@@ -27,10 +27,14 @@
 #define EXIT_ERROR -1
 #define EXIT_FAILURE 1
 
+#define TIMESTAMPS_N (WINDOW_INITIAL_WINDOW_SIZE / MSS + 1)
+
 typedef struct {
   uint32_t next_seq_expected;
   uint32_t last_ack_received;
   pthread_mutex_t ack_lock;
+  timestamp_option_t pkt_sent_times[TIMESTAMPS_N];
+  uint16_t pkt_n;
 } window_t;
 
 /**
@@ -57,7 +61,6 @@ typedef struct{
 
 }timestamp_option_t;
 
-#define TIMESTAMP_OPTION_SIZE (sizeof(timestamp_option_t))
 
 
 /**
