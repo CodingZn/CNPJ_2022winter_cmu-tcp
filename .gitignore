@@ -6,7 +6,12 @@ project-2_15-441/receiver
 project-2_15-441/sender
 project-2_15-441/server
 project-2_15-441/tests/testing_server
+project-2_15-441others
+project-2_15-441wrong
 **/*.pyc
 **/handin.tar.gz
 **/*.pcap
 !**/test.pcap
+project-2_15-441wrong/client
+project-2_15-441wrong/server
+project-2_15-441wrong/tests/testing_server
