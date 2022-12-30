@@ -204,6 +204,63 @@ printf("send synack\n");
 printf("send ack\n");    
       break;
     }
+    case FIN_FLAG_MASK:{// fin receiver
+      sock->window.next_seq_expected = get_seq(hdr) + 1;    printf("rcv fin: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));  
+   
+      socklen_t conn_len = sizeof(sock->conn);
+      uint32_t seq = sock->window.last_ack_received + 1;
+
+      uint8_t *payload = NULL;
+      uint16_t payload_len = 0;
+      uint16_t ext_len = 0;
+      uint8_t *ext_data = NULL;
+      uint16_t src = sock->my_port;
+      uint16_t dst = ntohs(sock->conn.sin_port);
+      uint32_t ack = sock->window.next_seq_expected;
+
+      uint16_t hlen = sizeof(cmu_tcp_header_t);
+      uint16_t plen = hlen + payload_len;  printf("plen:%d\n",plen);
+      uint8_t flags = FIN_FLAG_MASK | ACK_FLAG_MASK;
+      uint16_t adv_window = 1;
+      uint8_t *response_packet =
+          create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
+                        ext_len, ext_data, payload, payload_len);
+
+      for(int i =0; i<3; i++){
+        sendto(sock->socket, response_packet, plen, 0,
+             (struct sockaddr *)&(sock->conn), conn_len);
+        struct pollfd ack_fd;
+        ack_fd.fd = sock->socket;
+        ack_fd.events = POLLIN;
+        // send finack 3 times
+        poll(&ack_fd, 1, 1500);
+      }
+      
+      free(response_packet);
+printf("send finack\n");        
+      while(pthread_mutex_lock(&sock->state_lock) != 0);
+      sock->state = 4;
+      pthread_mutex_unlock(&sock->state_lock);
+      while (pthread_mutex_lock(&(sock->death_lock)) != 0) {
+      }
+      sock->dying = 1;
+      pthread_mutex_unlock(&(sock->death_lock));
+      break;
+    }
+
+    case FIN_FLAG_MASK | ACK_FLAG_MASK:{// fin sender   
+      while(pthread_mutex_lock(&sock->state_lock) != 0){}   printf("rcv finack: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));   
+      sock->state = 4;
+      pthread_mutex_unlock(&sock->state_lock);
+      
+      sock->window.next_seq_expected = get_seq(hdr) + 1;      
+   
+      socklen_t conn_len = sizeof(sock->conn);
+      sock->window.last_ack_received++;
+
+      break;
+    }
+
     default: {printf("rcv default: with seq:%u and ack %u\n", get_seq(hdr), get_ack(hdr));  
       socklen_t conn_len = sizeof(sock->conn);
       uint32_t seq = sock->window.last_ack_received;
@@ -552,6 +609,40 @@ printf("send syn\n");
     buf_len = sock->sending_len;
 
     if (death && buf_len == 0) {
+      //perform teardown
+      while(1){
+        size_t conn_len = sizeof(sock->conn);
+        // No payload.
+        uint8_t *payload = NULL;
+        uint16_t payload_len = 0;
+        uint16_t src = sock->my_port;
+        uint16_t dst = ntohs(sock->conn.sin_port);
+        uint32_t seq = sock->window.last_ack_received;
+        uint32_t ack = sock->window.next_seq_expected;
+        uint16_t hlen = sizeof(cmu_tcp_header_t); 
+        uint16_t plen = hlen + payload_len;
+        uint8_t flags = FIN_FLAG_MASK;
+        uint16_t adv_window = 1; // unchanged
+        
+        uint16_t ext_len = 0;
+        uint8_t* ext_data = NULL;
+        uint8_t *msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
+                            ext_len, ext_data, payload, payload_len);
+
+        sendto(sock->socket, msg, plen, 0, (struct sockaddr *)&(sock->conn),
+                conn_len);
+        free(msg);
+        printf("send fin\n");  
+        while(pthread_mutex_lock(&sock->state_lock) != 0);
+        sock->state = 3;
+        pthread_mutex_unlock(&sock->state_lock);
+
+        // check
+        check_for_data(sock, TIMEOUT);
+        if (sock->state == 4)
+          break;
+
+      }
       break;
     }
 
@@ -581,7 +672,7 @@ printf("send syn\n");
       pthread_cond_signal(&(sock->wait_cond));
     }
   }
-
+  printf("backend exit\n");
   pthread_exit(NULL);
   return NULL;
 }
