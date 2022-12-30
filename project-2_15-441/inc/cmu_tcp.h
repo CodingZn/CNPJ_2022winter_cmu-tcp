@@ -36,6 +36,7 @@ typedef struct {
   struct timespec pkt_sent_times[TIMESTAMPS_N];
   uint32_t pkt_expect_ack[TIMESTAMPS_N];
   uint16_t pkt_n;
+  pthread_mutex_t pkt_track_lock;
 } window_t;
 
 /**

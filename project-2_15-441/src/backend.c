@@ -94,22 +94,24 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
           struct timespec ts_sent = sock->window.pkt_sent_times[index];
           uint16_t rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
           //update rtt
+          while (pthread_mutex_lock(&sock->rtt_lock) != 0){}
           rtt_t newrtt = sock->rtt;
           newrtt.srtt = sock->rtt.srtt + 0.125* (rtt - sock->rtt.srtt);
           newrtt.devrtt = 0.75 * sock->rtt.devrtt + 0.25 * (abs(rtt - sock->rtt.srtt));
           newrtt.rto = newrtt.srtt + 4 * newrtt.devrtt;
           sock->rtt = newrtt;   printf("check new rtt: srtt=%d, drtt=%d, rto=%d\n", sock->rtt.srtt, sock->rtt.devrtt, sock->rtt.rto);
-
+          pthread_mutex_unlock(&sock->rtt_lock);
         }
       }
       else{
         struct timespec ts_sent = sock->window.pkt_sent_times[0];
         uint16_t rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
         //init rtt(ms)
+        while (pthread_mutex_lock(&sock->rtt_lock) != 0){}
         sock->rtt.srtt = rtt;
         sock->rtt.devrtt = 0;
         sock->rtt.rto = rtt;
-
+        pthread_mutex_unlock(&sock->rtt_lock);
       }
 
       while(pthread_mutex_lock(&sock->state_lock) != 0);
@@ -139,11 +141,13 @@ void handle_message(cmu_socket_t *sock, uint8_t *pkt) {printf("handle message:")
           create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                         ext_len, ext_data, payload, payload_len);
 
-      //add timestamp in payload
+      //add timestamp
       struct timespec ts;
       clock_gettime(CLOCK_REALTIME, &ts);
+      while(pthread_mutex_lock(&sock->window.pkt_track_lock) != 0){}
       sock->window.pkt_n = 1;
       sock->window.pkt_sent_times[0] = ts;
+      pthread_mutex_unlock(&sock->window.pkt_track_lock);
 
       sendto(sock->socket, response_packet, plen, 0,
              (struct sockaddr *)&(sock->conn), conn_len);
@@ -175,10 +179,11 @@ printf("send synack\n");
       clock_gettime(CLOCK_REALTIME, &ts_now);
       //init rtt(ms)
       uint16_t new_rtt = 1000 * (ts_now.tv_sec - ts_sent.tv_sec) + (ts_now.tv_nsec - ts_sent.tv_nsec) / 1000000;
+      while (pthread_mutex_lock(&sock->rtt_lock) != 0){}
       sock->rtt.srtt = new_rtt;
       sock->rtt.devrtt = 0;
       sock->rtt.rto = new_rtt;
-
+      pthread_mutex_unlock(&sock->rtt_lock);
 
       uint16_t ext_len = 0;
       uint8_t *ext_data = NULL;
@@ -192,12 +197,6 @@ printf("send synack\n");
       uint8_t *response_packet =
           create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
                         ext_len, ext_data, payload, payload_len);
-
-      // //add timestamp
-      // struct timespec ts;
-      // clock_gettime(CLOCK_REALTIME, &ts);
-      // sock->window.pkt_n = 1;
-      // sock->window.pkt_sent_times[0] = ts;
 
       sendto(sock->socket, response_packet, plen, 0,
              (struct sockaddr *)&(sock->conn), conn_len);
@@ -398,6 +397,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
       uint32_t len_have_rcvd = 0;
       sock->window.pkt_n = 0;
 
+      while(pthread_mutex_lock(&sock->window.pkt_track_lock) != 0){}
       // 发送循环
       // 对于本窗口，将所有的pkt都发出去
       // 窗口大小固定为WINDOW_INITIAL_WINDOW_SIZE byte
@@ -431,7 +431,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
         //add timestamp
         struct timespec send_time;
         clock_gettime(CLOCK_REALTIME, &send_time);
-        sock->window.pkt_n = 1;
+   
         sock->window.pkt_sent_times[sock->window.pkt_n] = send_time;
         sock->window.pkt_expect_ack[sock->window.pkt_n] = seq + payload_len;
         sock->window.pkt_n++;
@@ -441,6 +441,7 @@ void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {printf("single
 
         len_have_sent += payload_len;
       }
+      pthread_mutex_unlock(&sock->window.pkt_track_lock);
 printf("send all in a window. now check...\n");
       // 接受循环
       // 检查收到的ack，仅当收到所有ack或者timeout才结束循环
@@ -505,8 +506,10 @@ void *begin_backend(void *in) {
       struct timespec send_time;
       clock_gettime(CLOCK_REALTIME, &send_time);
       
+      while(pthread_mutex_lock(&sock->window.pkt_track_lock) != 0){}
       sock->window.pkt_n = 1;
       sock->window.pkt_sent_times[0] = send_time;
+      pthread_mutex_unlock(&sock->window.pkt_track_lock);
 
       sendto(sock->socket, msg, plen, 0, (struct sockaddr *)&(sock->conn),
               conn_len);
