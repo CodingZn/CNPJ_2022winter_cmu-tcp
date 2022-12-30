@@ -297,16 +297,22 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
     default:
       perror("ERROR unknown flag");
   }
-  if (len >= (ssize_t)sizeof(cmu_tcp_header_t)) {
-    plen = get_plen(&hdr); printf("checking data: plen=%d\n", plen);
-    pkt = malloc(plen);
-    while (buf_size < plen) {
-      n = recvfrom(sock->socket, pkt + buf_size, plen - buf_size, 0,
-                   (struct sockaddr *)&(sock->conn), &conn_len);
-      buf_size = buf_size + n;
+  if (len >= (ssize_t)sizeof(cmu_tcp_header_t)) {printf("identifier: %d\n", ntohl(hdr.identifier));
+    //check identifier
+    if (ntohl(hdr.identifier) == IDENTIFIER){
+      plen = get_plen(&hdr); printf("checking data: plen=%d\n", plen);
+      pkt = malloc(plen);
+      while (buf_size < plen) {
+        n = recvfrom(sock->socket, pkt + buf_size, plen - buf_size, 0,
+                    (struct sockaddr *)&(sock->conn), &conn_len);
+        buf_size = buf_size + n;
+      }
+      handle_message(sock, pkt);
+      free(pkt);
     }
-    handle_message(sock, pkt);
-    free(pkt);
+    else{
+      perror("ERROR unknown identifier");
+    }
   }
   pthread_mutex_unlock(&(sock->recv_lock));
 }
