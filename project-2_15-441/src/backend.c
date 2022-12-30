@@ -255,7 +255,6 @@ printf("send finack\n");
       
       sock->window.next_seq_expected = get_seq(hdr) + 1;      
    
-      socklen_t conn_len = sizeof(sock->conn);
       sock->window.last_ack_received++;
 
       break;
@@ -610,7 +609,7 @@ printf("send syn\n");
 
     if (death && buf_len == 0) {
       //perform teardown
-      while(1){
+      while(sock->state != 4){
         size_t conn_len = sizeof(sock->conn);
         // No payload.
         uint8_t *payload = NULL;
@@ -639,8 +638,6 @@ printf("send syn\n");
 
         // check
         check_for_data(sock, TIMEOUT);
-        if (sock->state == 4)
-          break;
 
       }
       break;
