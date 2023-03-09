@@ -376,58 +376,6 @@ void check_for_data(cmu_socket_t *sock, cmu_read_mode_t flags) {
  * Breaks up the data into packets and sends a single packet at a time.
  *
  * You should most certainly update this function in your implementation.
- *
- * @param sock The socket to use for sending data.
- * @param data The data to be sent.
- * @param buf_len The length of the data being sent.
- */
-/*
-void single_send(cmu_socket_t *sock, uint8_t *data, int buf_len) {
-  uint8_t *msg;
-  uint8_t *data_offset = data;
-  size_t conn_len = sizeof(sock->conn);
-
-  int sockfd = sock->socket;
-  if (buf_len > 0) {
-    while (buf_len != 0) {
-      uint16_t payload_len = MIN((uint16_t)buf_len, (uint16_t)MSS);
-
-      uint16_t src = sock->my_port;
-      uint16_t dst = ntohs(sock->conn.sin_port);
-      uint32_t seq = sock->window.last_ack_received;
-      uint32_t ack = sock->window.next_seq_expected;
-      uint16_t hlen = sizeof(cmu_tcp_header_t);
-      uint16_t plen = hlen + payload_len;
-      uint8_t flags = 0;
-      uint16_t adv_window = 1;
-      uint16_t ext_len = 0;
-      uint8_t *ext_data = NULL;
-      uint8_t *payload = data_offset;
-
-      msg = create_packet(src, dst, seq, ack, hlen, plen, flags, adv_window,
-                          ext_len, ext_data, payload, payload_len);
-      buf_len -= payload_len;
-
-      while (1) {
-        // FIXME: This is using stop and wait, can we do better?
-        sendto(sockfd, msg, plen, 0, (struct sockaddr *)&(sock->conn),
-               conn_len);
-        check_for_data(sock, TIMEOUT);
-        if (has_been_acked(sock, seq)) {
-          break;
-        }
-      }
-
-      data_offset += payload_len;
-    }
-  }
-}*/
-
-
-/**
- * Breaks up the data into packets and sends a single packet at a time.
- *
- * You should most certainly update this function in your implementation.
  * 
  * waiting for debugging --xtl
  *

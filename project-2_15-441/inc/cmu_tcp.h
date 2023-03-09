@@ -84,6 +84,9 @@ typedef struct {
   /*
   * for client, 0 for listen, 1 for synsent, 2 for established
   * for server, 0 for listen, 1 for synrcvd, 2 for established
+  * 
+  * 3 for have sent fin, but not recv finack
+  * 4 for have rcvd fin or finack, and ok to close
   */
   uint8_t state;
 } cmu_socket_t;
